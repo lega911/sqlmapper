@@ -3,6 +3,7 @@
 import MySQLdb
 from contextlib import contextmanager
 import copy
+import re
 
 
 def Connection(*argv, **kargs):
@@ -54,8 +55,15 @@ class Table(object):
             keys = []
             values = []
             for k, v in filter.items():
-                keys.append('`' + k + '`=%s')
-                values.append(v)
+                if '.' not in k:
+                    k = '`{}`.`{}`'.format(self.table, k)
+                else:
+                    k = '`' + k + '`'
+                if v is None:
+                    keys.append(k + ' is NULL')
+                else:
+                    keys.append(k + '=%s')
+                    values.append(v)
             sql = ', '.join(keys)
             return sql, values
         elif isinstance(filter, (list, tuple)):
@@ -73,13 +81,35 @@ class Table(object):
         else:
             raise NotImplementedError
 
-    def find_one(self, filter=None, columns=None, join=None, for_update=False):
-        for row in self.find(filter, limit=1, columns=columns, join=join, for_update=for_update):
+    def find_one(self, filter=None, join=None, for_update=False):
+        for row in self.find(filter, limit=1, join=join, for_update=for_update):
             return row
 
-    def find(self, filter=None, columns=None, limit=None, join=None, for_update=False):
-        sql = 'SELECT * FROM `{}`'.format(self.table)
+    def find(self, filter=None, limit=None, join=None, for_update=False):
+        """
+            join='subtable.id=column'
+            join='subtable as tbl.id=column'
+        """
+        columns = '{}.*'.format(self.table)
+        joins = []
+        if join:
+            r = re.match(r'(\w+)\.(\w+)=(\w+)', join)
+            if r:
+                table2, column2, column1 = r.groups()
+                alias = table2
+            else:
+                r = re.match(r'(\w+)\s+as\s+(\w+)\.(\w+)=(\w+)', join)
+                assert r
+                table2, alias, column2, column1 = r.groups()
+
+            columns += ', "" as __divider, {}.*'.format(alias)
+            join = ' JOIN {} AS {} ON {}.{} = {}'.format(table2, alias, alias, column2, column1)
+            joins.append(alias)
+
+        sql = 'SELECT {} FROM `{}`'.format(columns, self.table)
         where, values = self._build_filter(filter)
+        if join:
+            sql += join
         if where:
             sql += ' WHERE ' + where
         if limit:
@@ -91,10 +121,20 @@ class Table(object):
         columns = self.cursor.description
         if self.cursor.rowcount:
             for row in self.cursor:
+                subindex = -1
+                subobject = None
                 d = {}
                 for i, value in enumerate(row):
                     col = columns[i]
-                    d[col[0]] = value
+                    column_name = col[0]
+                    if column_name == '__divider':
+                        subindex += 1
+                        d[joins[subindex]] = subobject = {}
+                        continue
+                    if subobject is not None:
+                        subobject[column_name] = value
+                    else:
+                        d[column_name] = value
 
                 yield d
 
