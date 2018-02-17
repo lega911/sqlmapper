@@ -2,3 +2,7 @@
 info
 __pycache__
 *.pyc
+MANIFEST
+Makefile
+dist/
+test.py
