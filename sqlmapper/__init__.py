@@ -4,19 +4,39 @@ import MySQLdb
 from contextlib import contextmanager
 import copy
 import re
+import threading
 
 
 def Connection(*argv, **kargs):
+    pool = threading.local()
+    g_mapper = Mapper
+
+    if argv and hasattr(argv[0], 'cursor'):
+        pool.connection = argv[0]
+
+    if 'read_commited' in kargs:
+        g_read_commited = kargs.pop('read_commited')
+
+    if 'mapper' in kargs:
+        g_mapper = kargs.pop('mapper')
+
     @contextmanager
-    def mapper(read_commited=False, commit=True):
-        connection = MySQLdb.connect(*argv, **kargs)
+    def mapper(read_commited=None, commit=True, mapper=None):
+        if hasattr(pool, 'connection'):
+            print('reuse connection')
+            connection = pool.connection
+        else:
+            print('open connection')
+            pool.connection = connection = MySQLdb.connect(*argv, **kargs)
+
         cursor = connection.cursor()
-        if read_commited:
+        if read_commited or (read_commited is None and g_read_commited):
             cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
 
         commited = False
+        mapper = mapper or g_mapper
         try:
-            yield Mapper(cursor)
+            yield mapper(cursor)
             if commit:
                 connection.commit()
                 commited = True
@@ -135,7 +155,6 @@ class Table(object):
                         subobject[column_name] = value
                     else:
                         d[column_name] = value
-
                 yield d
 
     def update(self, filter=None, update=None):
@@ -175,16 +194,13 @@ class Table(object):
     def delete(self):
         raise NotImplementedError
 
-    def create(self):
-        raise NotImplementedError
-
     def drop(self):
         raise NotImplementedError
 
-    def create_index(self):
+    def create_index(self, name, columns, exist_ok=False):
         raise NotImplementedError
 
-    def has_index(self):
+    def has_index(self, name):
         raise NotImplementedError
 
     def add_column(self, name, type, not_null=False, default=None, exist_ok=False, primary=False, auto_increment=False):

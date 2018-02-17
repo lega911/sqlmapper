@@ -1,4 +1,4 @@
 .idea
 info
 __pycache__
-
+*.pyc
