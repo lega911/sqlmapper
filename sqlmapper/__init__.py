@@ -1,10 +1,45 @@
 # coding: utf8
 
-import MySQLdb
+import sys
 from contextlib import contextmanager
 import copy
 import re
 import threading
+
+
+PY3 = sys.version_info.major == 3
+NoValue = object()
+
+if PY3:
+    def is_int(value):
+        return isinstance(value, int)
+
+    def is_str(value):
+        return isinstance(value, str)
+
+    def is_bytes(value):
+        return isinstance(value, bytes)
+
+else:
+    def is_int(value):
+        return isinstance(value, (int, long))
+
+    def is_str(value):
+        return isinstance(value, unicode)
+
+    def is_bytes(value):
+        return isinstance(value, str)
+
+
+def cc(name):
+    assert is_str(name) or is_bytes(name), 'Wrong type'
+    assert re.match(r'^[\w\d_]+$', name), 'Wrong name value: `{}`'.format(name)
+    return '`' + name + '`'
+
+
+def validate_name(*names):
+    for name in names:
+        cc(name)
 
 
 def Connection(*argv, **kargs):
@@ -23,10 +58,9 @@ def Connection(*argv, **kargs):
     @contextmanager
     def mapper(read_commited=None, commit=True, mapper=None):
         if hasattr(pool, 'connection'):
-            print('reuse connection')
             connection = pool.connection
         else:
-            print('open connection')
+            import MySQLdb
             pool.connection = connection = MySQLdb.connect(*argv, **kargs)
 
         cursor = connection.cursor()
@@ -64,6 +98,7 @@ class Mapper(object):
 
 class Table(object):
     def __init__(self, mapper, table):
+        validate_name(table)
         self.mapper = mapper
         self.cursor = mapper.cursor
         self.table = table
@@ -76,19 +111,19 @@ class Table(object):
             values = []
             for k, v in filter.items():
                 if '.' not in k:
-                    k = '`{}`.`{}`'.format(self.table, k)
+                    k = '`{}`.{}'.format(self.table, cc(k))
                 else:
-                    k = '`' + k + '`'
+                    k = cc(k)
                 if v is None:
                     keys.append(k + ' is NULL')
                 else:
                     keys.append(k + '=%s')
                     values.append(v)
-            sql = ', '.join(keys)
+            sql = ' AND '.join(keys)
             return sql, values
         elif isinstance(filter, (list, tuple)):
             return filter[0], filter[1:]
-        elif isinstance(filter, (str, int)):
+        elif is_int(filter) or is_str(filter) or is_bytes(filter):
             # find by primary key
             key = None
             for column in self.describe():
@@ -182,28 +217,44 @@ class Table(object):
         values = []
         items = []
         for key, value in data.items():
-            keys.append('`{}`'.format(key))
+            keys.append(cc(key))
             values.append(value)
             items.append('%s')
 
         sql = 'INSERT INTO `{}` ({}) VALUES ({})'.format(self.table, ', '.join(keys), ', '.join(items))
         self.cursor.execute(sql, tuple(values))
         assert self.cursor.rowcount == 1
-        #return self.cursor.lastrowid
+        return self.cursor.lastrowid
 
-    def delete(self):
-        raise NotImplementedError
+    def delete(self, filter=None):
+        where, values = self._build_filter(filter)
+
+        sql = 'DELETE FROM `{}`'.format(self.table)
+        if where:
+            sql += ' WHERE {}'.format(where)
+        self.cursor.execute(sql, tuple(values))
 
     def drop(self):
         raise NotImplementedError
 
-    def create_index(self, name, columns, exist_ok=False):
-        raise NotImplementedError
+    def create_index(self, name, columns, unique=False, exist_ok=False):
+        if exist_ok and self.has_index(name):
+            return
+        columns = ', '.join(map(cc, columns))
+        sql = 'ALTER TABLE `{}` ADD{} {}({})'.format(self.table, ' UNIQUE' if unique else '', cc(name), columns)
+        self.cursor.execute(sql)
 
     def has_index(self, name):
-        raise NotImplementedError
+        self.cursor.execute('show index from ' + self.table)
+        for row in self.cursor:
+            if row[2] == name:
+                return True
+        return False
 
-    def add_column(self, name, type, not_null=False, default=None, exist_ok=False, primary=False, auto_increment=False):
+    def add_column(self, name, type, not_null=False, default=NoValue, exist_ok=False, primary=False, auto_increment=False):
+        validate_name(name)
+        assert re.match(r'^[\w\d\(\)]+$', type), 'Wrong type: {}'.format(type)
+        cc(name)
         values = []
         scolumn = '`{}` {}'.format(name, type)
         if primary:
@@ -212,7 +263,7 @@ class Table(object):
             scolumn += ' NOT NULL'
             if auto_increment:
                 scolumn += ' AUTO_INCREMENT'
-        if default is not None:
+        if default != NoValue:
             if not_null or primary:
                 raise ValueError('Can''t have default value')
             scolumn += ' DEFAULT %s'
