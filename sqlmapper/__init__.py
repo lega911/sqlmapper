@@ -7,6 +7,7 @@ import re
 import threading
 
 
+__version__ = '0.2.1'
 PY3 = sys.version_info.major == 3
 NoValue = object()
 
@@ -171,6 +172,9 @@ class Table(object):
             assert isinstance(limit, int)
             sql += ' LIMIT {}'.format(limit)
 
+        if for_update:
+            sql += ' FOR UPDATE'
+
         self.cursor.execute(sql, tuple(values))
 
         columns = self.cursor.description
@@ -254,7 +258,6 @@ class Table(object):
     def add_column(self, name, type, not_null=False, default=NoValue, exist_ok=False, primary=False, auto_increment=False):
         validate_name(name)
         assert re.match(r'^[\w\d\(\)]+$', type), 'Wrong type: {}'.format(type)
-        cc(name)
         values = []
         scolumn = '`{}` {}'.format(name, type)
         if primary:
