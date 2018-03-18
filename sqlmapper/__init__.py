@@ -7,7 +7,7 @@ import re
 import threading
 
 
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 PY3 = sys.version_info.major == 3
 NoValue = object()
 
@@ -89,6 +89,8 @@ class Mapper(object):
         self._table = {}
 
     def __getattr__(self, name):
+        if name == 'cursor':
+            return self.__dict__['cursor']
         return Table(self, name)
 
     def show_tables(self):
