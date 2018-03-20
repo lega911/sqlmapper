@@ -4,7 +4,7 @@ from distutils.core import setup
 
 setup(
     name='sqlmapper',
-    version='0.2.2',
+    version='0.2.3',
     description='SQL Mapper',
     author='Oleg Nechaev',
     author_email='lega911@gmail.com',

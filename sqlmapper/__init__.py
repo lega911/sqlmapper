@@ -7,7 +7,7 @@ import re
 import threading
 
 
-__version__ = '0.2.2'
+__version__ = '0.2.3'
 PY3 = sys.version_info.major == 3
 NoValue = object()
 
@@ -243,11 +243,32 @@ class Table(object):
     def drop(self):
         raise NotImplementedError
 
-    def create_index(self, name, columns, unique=False, exist_ok=False):
+    def create_index(self, name, column, primary=False, unique=False, fulltext=False, exist_ok=False):
+        if primary:
+            name = 'PRIMARY'
         if exist_ok and self.has_index(name):
             return
-        columns = ', '.join(map(cc, columns))
-        sql = 'ALTER TABLE `{}` ADD{} {}({})'.format(self.table, ' UNIQUE' if unique else '', cc(name), columns)
+
+        if isinstance(column, list):
+            column = ', '.join(map(cc, column))
+        else:
+            column = cc(column)
+
+        index_type = 'INDEX '
+        if primary:
+            index_type = 'PRIMARY KEY '
+            assert not fulltext
+            name = ''
+        else:
+            name = cc(name)
+
+        if unique and not primary:
+            assert not fulltext
+            index_type = 'UNIQUE '
+        elif fulltext:
+            index_type = 'FULLTEXT '
+
+        sql = 'ALTER TABLE `{}` ADD {}{}({})'.format(self.table, index_type, name, column)
         self.cursor.execute(sql)
 
     def has_index(self, name):
