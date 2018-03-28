@@ -7,7 +7,7 @@ import re
 import threading
 
 
-__version__ = '0.2.3'
+__version__ = '0.2.4'
 PY3 = sys.version_info.major == 3
 NoValue = object()
 
@@ -38,6 +38,16 @@ def cc(name):
     return '`' + name + '`'
 
 
+def cc2(name):
+    r = re.match(r'^(\w+)\(([^\)]+)\)$', name)
+    if not r:
+        return cc(name)
+
+    func = r.groups(0)[0]
+    name = r.groups(0)[1]
+    return '{}({}) as {}'.format(func, cc(name), cc(func+'_'+name).lower())
+
+
 def validate_name(*names):
     for name in names:
         cc(name)
@@ -47,11 +57,9 @@ def Connection(*argv, **kargs):
     pool = threading.local()
     g_mapper = Mapper
 
+    g_read_commited = kargs.pop('read_commited', False)
     if argv and hasattr(argv[0], 'cursor'):
         pool.connection = argv[0]
-
-    if 'read_commited' in kargs:
-        g_read_commited = kargs.pop('read_commited')
 
     if 'mapper' in kargs:
         g_mapper = kargs.pop('mapper')
@@ -139,16 +147,24 @@ class Table(object):
         else:
             raise NotImplementedError
 
-    def find_one(self, filter=None, join=None, for_update=False):
-        for row in self.find(filter, limit=1, join=join, for_update=for_update):
+    def find_one(self, filter=None, join=None, for_update=False, columns=None):
+        for row in self.find(filter, limit=1, join=join, for_update=for_update, columns=columns):
             return row
 
-    def find(self, filter=None, limit=None, join=None, for_update=False):
+    def find(self, filter=None, limit=None, join=None, for_update=False, columns=None, group_by=None):
         """
             join='subtable.id=column'
             join='subtable as tbl.id=column'
         """
-        columns = '{}.*'.format(self.table)
+
+        if columns:
+            assert not join
+            if not isinstance(columns, (list, tuple)):
+                columns = [columns]
+            columns = ', '.join(map(cc2, columns))
+        else:
+            columns = '{}.*'.format(self.table)
+
         joins = []
         if join:
             r = re.match(r'(\w+)\.(\w+)=(\w+)', join)
@@ -170,6 +186,8 @@ class Table(object):
             sql += join
         if where:
             sql += ' WHERE ' + where
+        if group_by:
+            sql += ' GROUP BY ' + cc(group_by)
         if limit:
             assert isinstance(limit, int)
             sql += ' LIMIT {}'.format(limit)
