@@ -7,7 +7,7 @@ import re
 import threading
 
 
-__version__ = '0.2.4'
+__version__ = '0.2.5'
 PY3 = sys.version_info.major == 3
 NoValue = object()
 
@@ -296,17 +296,24 @@ class Table(object):
                 return True
         return False
 
-    def add_column(self, name, type, not_null=False, default=NoValue, exist_ok=False, primary=False, auto_increment=False):
+    def add_column(self, name, type, not_null=False, default=NoValue, exist_ok=False, primary=False, auto_increment=False, collate=None):
         validate_name(name)
         assert re.match(r'^[\w\d\(\)]+$', type), 'Wrong type: {}'.format(type)
         values = []
         scolumn = '`{}` {}'.format(name, type)
+
+        if collate:
+            charset = collate.split('_')[0]
+            scolumn += ' CHARACTER SET {} COLLATE {}'.format(charset, collate)
+
         if primary:
             not_null = True
+
         if not_null:
             scolumn += ' NOT NULL'
             if auto_increment:
                 scolumn += ' AUTO_INCREMENT'
+
         if default != NoValue:
             if not_null or primary:
                 raise ValueError('Can''t have default value')
@@ -323,7 +330,9 @@ class Table(object):
         else:
             if primary:
                 scolumn += ', PRIMARY KEY (`{}`)'.format(name)
-            sql = 'CREATE TABLE `{}` ({}) ENGINE=InnoDB DEFAULT CHARSET=utf8'.format(self.table, scolumn)
+            collate = collate or 'utf8mb4_unicode_ci'
+            charset = collate.split('_')[0]
+            sql = 'CREATE TABLE `{}` ({}) ENGINE=InnoDB DEFAULT CHARSET {} COLLATE {}'.format(self.table, scolumn, charset, collate)
         self.cursor.execute(sql, tuple(values))
 
     def describe(self):
