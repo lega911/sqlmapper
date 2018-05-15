@@ -7,7 +7,7 @@ import re
 import threading
 
 
-__version__ = '0.2.5'
+__version__ = '0.2.6'
 PY3 = sys.version_info.major == 3
 NoValue = object()
 
@@ -121,10 +121,10 @@ class Table(object):
             keys = []
             values = []
             for k, v in filter.items():
-                if '.' not in k:
-                    k = '`{}`.{}'.format(self.table, cc(k))
+                if '.' in k:
+                    k = '.'.join(map(cc, k.split('.')))
                 else:
-                    k = cc(k)
+                    k = '`{}`.{}'.format(self.table, cc(k))
                 if v is None:
                     keys.append(k + ' is NULL')
                 else:
