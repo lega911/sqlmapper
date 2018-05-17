@@ -3,7 +3,7 @@ from sqlmapper import Connection
 
 
 def main():
-    connection = Connection(db='example', charset='utf8')
+    connection = Connection(db='example')
 
     with connection() as db:
         # add columns into table `tblname`

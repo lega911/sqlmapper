@@ -7,7 +7,7 @@ import re
 import threading
 
 
-__version__ = '0.2.6'
+__version__ = '0.2.7'
 PY3 = sys.version_info.major == 3
 NoValue = object()
 
@@ -63,6 +63,9 @@ def Connection(*argv, **kargs):
 
     if 'mapper' in kargs:
         g_mapper = kargs.pop('mapper')
+
+    if 'charset' not in kargs:
+        kargs['charset'] = 'utf8mb4'
 
     @contextmanager
     def mapper(read_commited=None, commit=True, mapper=None):
