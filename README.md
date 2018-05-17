@@ -1,22 +1,9 @@
 # Sqlmapper
 Wrapper for SQL
 
-### Example
+### Examples
 ```python
 connection = Connection(db='example')
-
-with connection() as db:
-    db.tblname.add_column('id', 'INT(11)', primary=True, auto_increment=True, exist_ok=True)
-    # CREATE TABLE `tblname` (`id` INT(11) NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci
-
-    db.tblname.add_column('name', 'VARCHAR(32)', exist_ok=True)
-    # ALTER TABLE `tblname` ADD COLUMN `name` VARCHAR(32)
-
-    db.tblname.add_column('value', 'INT(11)', exist_ok=True)
-    # ALTER TABLE `tblname` ADD COLUMN `value` INT(11)
-
-    db.tblname.create_index('name_idx', ['name'], exist_ok=True)
-    # ALTER TABLE `tblname` ADD INDEX `name_idx`(`name`)
 
 with connection() as db:
     db.tblname.insert({'name': 'Ubuntu', 'value': 14})
@@ -43,7 +30,24 @@ with connection() as db:
 # commit
 ```
 
-### join
+### Change schema
+```python
+
+# a table is created for first column
+db.tblname.add_column('id', 'INT(11)', primary=True, auto_increment=True, exist_ok=True)
+# CREATE TABLE `tblname` (`id` INT(11) NOT NULL AUTO_INCREMENT, PRIMARY KEY (`id`)) ENGINE=InnoDB DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci
+
+db.tblname.add_column('name', 'VARCHAR(32)', exist_ok=True)
+# ALTER TABLE `tblname` ADD COLUMN `name` VARCHAR(32)
+
+db.tblname.add_column('value', 'INT(11)', exist_ok=True)
+# ALTER TABLE `tblname` ADD COLUMN `value` INT(11)
+
+db.tblname.create_index('name_idx', ['name'], exist_ok=True)
+# ALTER TABLE `tblname` ADD INDEX `name_idx`(`name`)
+```
+
+### Join
 ```python
 for d in db.parent.find({'name': 'Linux'}, join='child.id=child_id'):
     # SELECT parent.*, "" as __divider, child.* FROM `parent` JOIN child AS child ON child.id = child_id WHERE `parent`.`name`='Linux'
@@ -58,7 +62,7 @@ for d in db.parent.find({'name': 'Linux'}, join='child.id=child_id'):
     # }
 ```
 
-### group by
+### Group by
 ```python
 for d in db.tblname.find(group_by='name', columns=['name', 'SUM(value)']):
     # SELECT `name`, SUM(`value`) as `sum_value` FROM `tblname` GROUP BY `name`
