@@ -14,6 +14,7 @@ class Connection(object):
         elif not callable(engine):
             raise NotImplementedError
         self._engine = engine(**kw)
+        self._engine.local.contextlvl = 0
 
     def commit(self):
         self._engine.commit()
@@ -38,3 +39,16 @@ class Connection(object):
     
     def on_rollback(self, fn):
         self._engine.on_rollback(fn)
+
+    def __enter__(self):
+        self._engine.local.contextlvl += 1
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._engine.local.contextlvl -= 1
+        if not self._engine.local.contextlvl:
+            if exc_type:
+                self.rollback()
+            else:
+                self.commit()
+        if exc_type:
+            return False
