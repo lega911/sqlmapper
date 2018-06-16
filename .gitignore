@@ -6,3 +6,4 @@ MANIFEST
 Makefile
 dist/
 test.py
+.vscode/
