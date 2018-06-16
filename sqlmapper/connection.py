@@ -8,12 +8,12 @@ class Connection(object):
         engine = kw.pop('engine', None) or 'mysql'
 
         if engine == 'mysql':
-            from .mysql import Engine
-            self._engine = Engine(**kw)
+            from .mysql import Engine as engine
         elif engine == 'sqlite':
+            from .sqlite import Engine as engine
+        elif not callable(engine):
             raise NotImplementedError
-        else:
-            self._engine = engine()
+        self._engine = engine(**kw)
 
     def commit(self):
         self._engine.commit()

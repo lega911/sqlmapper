@@ -3,8 +3,7 @@ from sqlmapper import Connection
 
 
 def main():
-    # docker run -d -p 3306:3306 --name mysql56 -e MYSQL_ALLOW_EMPTY_PASSWORD=true -d mysql:5.6
-    db = Connection(host='127.0.0.1', user='root', db='example', autocreate=True, read_commited=True)
+    db = Connection(engine='sqlite')
 
     db.book.add_column('id', 'int', primary=True, auto_increment=True, exist_ok=True)
     db.book.add_column('name', 'text', exist_ok=True)
@@ -18,7 +17,7 @@ def main():
     db.book.update(1, {'value': 18})
     db.commit()
 
-    for d in db.book.find({'name': 'ubuntu'}):
+    for d in db.book.find():
         print(d)
     
     db.book.delete({'value': 18})

@@ -1,7 +1,7 @@
 # Sqlmapper
 Easy wrapper for SQL
 
-* Supports Python 2.x, 3.x, MySQL (PostgreSQL is coming)
+* Supports Python 2.x, 3.x, MySQL, SQLite (PostgreSQL is coming)
 * License [MIT](http://opensource.org/licenses/MIT)
 
 ### Install and update using pip
