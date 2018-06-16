@@ -112,7 +112,7 @@ class Table(object):
         if group_by:
             sql += ' GROUP BY ' + cc(group_by)
         if limit:
-            assert isinstance(limit, int)
+            assert is_int(limit)
             sql += ' LIMIT {}'.format(limit)
 
         if for_update:
@@ -139,7 +139,7 @@ class Table(object):
                         d[column_name] = value
                 yield d
 
-    def update(self, filter=None, update=None):
+    def update(self, filter=None, update=None, limit=None):
         up = []
         values = []
         for key, value in update.items():
@@ -152,8 +152,15 @@ class Table(object):
         if where:
             sql += ' WHERE ' + where
             values += wvalues
+        
+        if limit:
+            assert is_int(limit)
+            sql += ' LIMIT {}'.format(limit)
 
         self.cursor.execute(sql, tuple(values))
+
+    def update_one(self, filter=None, update=None):
+        self.update(filter, update, limit=1)
 
     def delete(self, filter=None):
         where, values = self._build_filter(filter)
