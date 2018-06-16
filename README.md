@@ -12,31 +12,32 @@ pip install -U sqlmapper
 
 ### Examples
 ```python
-connection = Connection(db='example')
+db = Connection(db='example')
 
-with connection() as db:
-    db.tblname.insert({'name': 'Ubuntu', 'value': 14})
-    # INSERT INTO `tblname` (`name`, `value`) VALUES ('Ubuntu', 14)
+db.tblname.insert({'name': 'Ubuntu', 'value': 14})
+# INSERT INTO `tblname` (`name`, `value`) VALUES ('Ubuntu', 14)
 
-    db.tblname.insert({'name': 'MacOS', 'value': 10})
-    # INSERT INTO `tblname` (`name`, `value`) VALUES ('MacOS', 10)
+db.tblname.insert({'name': 'MacOS', 'value': 10})
+# INSERT INTO `tblname` (`name`, `value`) VALUES ('MacOS', 10)
 
-    for d in db.tblname.find({'name': 'Ubuntu'}):
-        # SELECT tblname.* FROM `tblname` WHERE `tblname`.`name`='Ubuntu'
-        print(d)
+for d in db.tblname.find({'name': 'Ubuntu'}):
+    # SELECT tblname.* FROM `tblname` WHERE `tblname`.`name`='Ubuntu'
+    print(d)
 
-    db.tblname.update({'name': 'Ubuntu'}, {'value': 16})
-    # UPDATE `tblname` SET `value` = 16 WHERE `tblname`.`name`='Ubuntu'
+db.tblname.update({'name': 'Ubuntu'}, {'value': 16})
+# UPDATE `tblname` SET `value` = 16 WHERE `tblname`.`name`='Ubuntu'
 
-    db.tblname.find_one({'Name': 'Ubuntu'})
-    # SELECT tblname.* FROM `tblname` WHERE `name` = 'Ubuntu' LIMIT 1
+db.tblname.find_one({'Name': 'Ubuntu'})
+# SELECT tblname.* FROM `tblname` WHERE `name` = 'Ubuntu' LIMIT 1
 
-    db.tblname.find_one(2)
-    # SELECT tblname.* FROM `tblname` WHERE `id` = 2 LIMIT 1
+db.tblname.find_one(2)
+# find by primary key
+# SELECT tblname.* FROM `tblname` WHERE `id` = 2 LIMIT 1
 
-    db.tblname.delete({'name': 'MacOS'})
-    # DELETE FROM `tblname` WHERE `tblname`.`name`='MacOS'
-# commit
+db.tblname.delete({'name': 'MacOS'})
+# DELETE FROM `tblname` WHERE `tblname`.`name`='MacOS'
+
+db.commit()
 ```
 
 ### Change schema
