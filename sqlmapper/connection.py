@@ -32,3 +32,9 @@ class Connection(object):
 
     def __iter__(self):
         return self._engine.get_tables()
+
+    def on_commit(self, fn):
+        self._engine.on_commit(fn)
+    
+    def on_rollback(self, fn):
+        self._engine.on_rollback(fn)

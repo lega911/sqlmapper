@@ -5,13 +5,14 @@ import sqlite3
 import copy
 from .table import Table
 from .utils import validate_name, NoValue
+from .base_engine import BaseEngine
 
 
-class Engine(object):
+class Engine(BaseEngine):
     def __init__(self, **kw):
         self.conn = sqlite3.connect(kw.get('db') or ':memory:')
         self.cursor = None
-        self.local = type('local', (object,), {'tables': {}})()
+        super(Engine, self).__init__()
 
     def get_cursor(self):
         if not self.cursor:
@@ -20,9 +21,11 @@ class Engine(object):
 
     def commit(self):
         self.conn.commit()
+        self.fire_event(True)
     
     def rollback(self):
         self.conn.rollback()
+        self.fire_event(False)
 
     def close(self):
         self.conn.close()

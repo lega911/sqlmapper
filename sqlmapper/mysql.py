@@ -1,20 +1,23 @@
 # coding: utf8
 
+from __future__ import absolute_import
 import MySQLdb
 import threading
 import re
 import copy
 from .table import Table
 from .utils import NoValue, validate_name
+from .base_engine import BaseEngine
 
 
-class Engine(object):
+class Engine(BaseEngine):
     def __init__(self, **kw):
         autocreate = kw.pop('autocreate', False)
         self.read_commited = kw.pop('read_commited', False)
         self.local = threading.local()
         if 'charset' not in kw:
             kw['charset'] = 'utf8mb4'
+        super(Engine, self).__init__()
 
         try:
             conn = MySQLdb.connect(**kw)
@@ -30,14 +33,15 @@ class Engine(object):
                 conn = MySQLdb.connect(**kw)
             else:
                 raise
-        self.local.tables = {}
         self.local.conn = conn
 
     def commit(self):
         self.local.conn.commit()
+        self.fire_event(True)
     
     def rollback(self):
         self.local.conn.rollback()
+        self.fire_event(False)
 
     def close(self):
         self.local.conn.close()
