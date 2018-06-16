@@ -12,7 +12,7 @@ def main():
 
     db.book.insert({'name': 'ubuntu', 'value': 16})
     db.commit()
-    d = db.book.find_one(2)
+    d = db.book.find_one(1)
     print(d)
 
     for d in db.book.find({'name': 'ubuntu'}):

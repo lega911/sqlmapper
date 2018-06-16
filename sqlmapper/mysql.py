@@ -132,6 +132,7 @@ class Table(object):
             charset = collate.split('_')[0]
             sql = 'CREATE TABLE `{}` ({}) ENGINE=InnoDB DEFAULT CHARSET {} COLLATE {}'.format(self.tablename, scolumn, charset, collate)
         self.cursor.execute(sql, tuple(values))
+        self.engine.local.tables[self.tablename] = None
 
     def insert(self, data):
         keys = []
