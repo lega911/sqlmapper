@@ -1,5 +1,4 @@
 
-
 class MultiException(Exception):
     def __init__(self, e):
         super(MultiException, self).__init__()

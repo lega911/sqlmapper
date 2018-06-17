@@ -1,7 +1,3 @@
-# coding: utf8
-
-from __future__ import absolute_import
-
 
 class Connection(object):
     def __init__(self, **kw):
