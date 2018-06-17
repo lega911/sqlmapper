@@ -4,7 +4,7 @@ from __future__ import absolute_import
 import sqlite3
 import copy
 from .table import Table
-from .utils import validate_name, NoValue
+from .utils import validate_name, NoValue, cc
 from .base_engine import BaseEngine
 
 
@@ -118,3 +118,27 @@ class SqliteTable(Table):
             sql = 'CREATE TABLE {} ({})'.format(self.tablename, scolumn)
 
         self.cursor.execute(sql, tuple(values))
+        self.engine.local.tables[self.tablename] = None
+
+    def has_index(self, name):
+        self.cursor.execute('PRAGMA index_list({})'.format(self.tablename))
+        for row in self.cursor:
+            if row[1] == name:
+                return True
+        return False
+
+    def create_index(self, name, column, unique=False, exist_ok=False):
+        if exist_ok and self.has_index(name):
+            return
+        
+        if not isinstance(column, list):
+            column = [column]
+        
+        column = ', '.join(map(cc, column))
+        sql = 'CREATE {}INDEX {} on {} ({})'.format(
+            'UNIQUE ' if unique else '',
+            name,
+            self.tablename,
+            column
+        )
+        self.cursor.execute(sql)

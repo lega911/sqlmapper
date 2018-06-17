@@ -4,10 +4,14 @@ from sqlmapper import Connection
 
 
 class TestMySQL(unittest.TestCase):
-    def test_main(self):
-        db = Connection(host='127.0.0.1', db='unittest', user='root', autocreate=True, read_commited=True)
+    def test_mysql(self):
+        self.main(Connection(host='127.0.0.1', db='unittest', user='root', autocreate=True, read_commited=True))
+    
+    def test_sqlite(self):
+        self.main(Connection(engine='sqlite'))
+
+    def main(self, db):
         db.book.drop()
-        db.ref.drop()
         db.ref.drop()
 
         db.book.add_column('id', 'int', primary=True, auto_increment=True, exist_ok=True)
@@ -17,7 +21,7 @@ class TestMySQL(unittest.TestCase):
 
         self.assertEqual(len(db.book.describe()), 3)
         self.assertEqual(db['book'].get_column('value')['name'], 'value')
-        self.assertEqual(list(db), ['book'])
+        self.assertIn('book', db)
 
         db.book.insert({'name': 'ubuntu', 'value': 16})
         db.book.insert({'name': 'mint', 'value': 18})

@@ -78,3 +78,9 @@ for d in db.tblname.find(group_by='name', columns=['name', 'SUM(value)']):
     # SELECT `name`, SUM(`value`) as `sum_value` FROM `tblname` GROUP BY `name`
     print(d)  # {'name': u'Ubuntu', 'sum_value': 32}
 ```
+
+### List of tables
+```python
+for table_name in db:
+    print(table_name)
+```
