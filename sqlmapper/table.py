@@ -1,7 +1,7 @@
 
 from __future__ import absolute_import
 import re
-from .utils import NoValue, validate_name, cc, cc2, is_bytes, is_int, is_str
+from .utils import NoValue, validate_name, cc, cc2, cc3, is_bytes, is_int, is_str
 
 
 class Table(object):
@@ -44,7 +44,7 @@ class Table(object):
             values = []
             for k, v in filter.items():
                 if '.' in k:
-                    k = '.'.join(map(cc, k.split('.')))
+                    k = cc3(k)
                 else:
                     k = '`{}`.{}'.format(self.tablename, cc(k))
                 if v is None:
@@ -69,12 +69,12 @@ class Table(object):
         else:
             raise NotImplementedError
 
-    def find_one(self, filter=None, join=None, for_update=False, columns=None):
-        result = list(self.find(filter, limit=1, join=join, for_update=for_update, columns=columns))
+    def find_one(self, filter=None, join=None, left_join=None, for_update=False, columns=None, order_by=None):
+        result = list(self.find(filter, limit=1, join=join, for_update=for_update, columns=columns, order_by=order_by))
         if result:
             return result[0]
 
-    def find(self, filter=None, limit=None, join=None, for_update=False, columns=None, group_by=None):
+    def find(self, filter=None, limit=None, join=None, left_join=None, for_update=False, columns=None, group_by=None, order_by=None):
         """
             join='subtable.id=column'
             join='subtable as tbl.id=column'
@@ -89,7 +89,13 @@ class Table(object):
             columns = '{}.*'.format(self.tablename)
 
         joins = []
-        if join:
+        if join or left_join:
+            assert bool(join) ^ bool(left_join)
+            if left_join:
+                join = left_join
+                prefix = 'LEFT '
+            else:
+                prefix = ''
             r = re.match(r'(\w+)\.(\w+)=(\w+)', join)
             if r:
                 table2, column2, column1 = r.groups()
@@ -100,8 +106,19 @@ class Table(object):
                 table2, alias, column2, column1 = r.groups()
 
             columns += ', "" as __divider, {}.*'.format(alias)
-            join = ' JOIN {} AS {} ON {}.{} = {}'.format(table2, alias, alias, column2, column1)
-            joins.append(alias)
+            join = ' {}JOIN {} AS {} ON {}.{} = {}'.format(prefix, table2, alias, alias, column2, column1)
+            
+            key = None
+            if left_join:
+                for c in self.engine.get_columns(self.tablename):
+                    if c['primary']:
+                        key = c['name']
+                        break
+
+            joins.append({
+                'alias': alias,
+                'key': key
+            })
 
         sql = 'SELECT {} FROM `{}`'.format(columns, self.tablename)
         where, values = self._build_filter(filter)
@@ -110,7 +127,17 @@ class Table(object):
         if where:
             sql += ' WHERE ' + where
         if group_by:
-            sql += ' GROUP BY ' + cc(group_by)
+            sql += ' GROUP BY ' + cc3(group_by)
+        if order_by:
+            if not isinstance(order_by, list):
+                order_by = [order_by]
+            oc = []
+            for name in order_by:
+                if name.startswith('-'):
+                    oc.append(cc3(name[1:]) + ' DESC')
+                else:
+                    oc.append(cc3(name))
+            sql += ' ORDER BY ' + ', '.join(oc)
         if limit:
             assert is_int(limit)
             sql += ' LIMIT {}'.format(limit)
@@ -123,18 +150,25 @@ class Table(object):
         columns = self.cursor.description
         if self.cursor.rowcount:
             for row in self.cursor:
-                subindex = -1
-                subobject = None
+                join_index = -1
+                join_alias = None
+                join_key = None
                 d = {}
                 for i, value in enumerate(row):
                     col = columns[i]
                     column_name = col[0]
                     if column_name == '__divider':
-                        subindex += 1
-                        d[joins[subindex]] = subobject = {}
+                        join_index += 1
+                        join_alias = joins[join_index]['alias']
+                        join_key = joins[join_index]['key']
+                        d[join_alias] = {}
                         continue
-                    if subobject is not None:
-                        subobject[column_name] = value
+                    if join_alias:
+                        if column_name == join_key:
+                            if value is None:
+                                d[join_alias] = None
+                        if d[join_alias] is not None:
+                            d[join_alias][column_name] = value
                     else:
                         d[column_name] = value
                 yield d
@@ -213,3 +247,10 @@ class Table(object):
             sql += ' WHERE {}'.format(where)
         self.cursor.execute(sql, tuple(values))
         return self.cursor.fetchone()[0]
+
+    def drop(self, exist_ok=True):
+        sql = 'DROP TABLE '
+        if exist_ok:
+            sql += 'IF EXISTS '
+        sql += self.tablename
+        self.cursor.execute(sql)

@@ -29,6 +29,7 @@ else:
 
 
 def cc(name):
+    assert name
     assert is_str(name) or is_bytes(name), 'Wrong type'
     assert re.match(r'^[\w\d_]+$', name), 'Wrong name value: `{}`'.format(name)
     return '`' + name + '`'
@@ -42,6 +43,10 @@ def cc2(name):
     func = r.groups(0)[0]
     name = r.groups(0)[1]
     return '{}({}) as {}'.format(func, cc(name), cc(func+'_'+name).lower())
+
+
+def cc3(name):
+    return '.'.join(map(cc, name.split('.')))
 
 
 def validate_name(*names):
