@@ -1,7 +1,6 @@
 
 import asyncio
 
-
 async def Connection(**kw):
     engine = kw.pop('engine', None) or 'mysql'
     loop = kw.pop('engine', None) or asyncio.get_event_loop()
@@ -15,7 +14,7 @@ async def Connection(**kw):
         raise NotImplementedError()
 
 
-class AsyncConnection(object):
+class AsyncConnection:
     def __init__(self, engine):
         self._engine = engine
 
@@ -37,17 +36,15 @@ class AsyncConnection(object):
     def __aiter__(self):
         return DBList(self._engine)
 
-    async def __anext__(self):
-        tables = await self._engine.get_tables()
-        for name in tables:
-            print('-', name)
-            yield name
-
     def on_commit(self, fn):
         self._engine.on_commit(fn)
     
     def on_rollback(self, fn):
         self._engine.on_rollback(fn)
+    
+    @property
+    def cursor(self):
+        return self._engine.cursor
 
     '''
     def __enter__(self):

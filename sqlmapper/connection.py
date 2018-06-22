@@ -48,3 +48,7 @@ class Connection(object):
                 self.commit()
         if exc_type:
             return False
+
+    @property
+    def cursor(self):
+        return self._engine.get_cursor()

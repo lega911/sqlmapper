@@ -2,11 +2,10 @@
 import copy
 import re
 import aiomysql
-from contextlib import asynccontextmanager
 from ..utils import validate_name, NoValue, cc
 
 
-class Engine(object):
+class Engine:
     def __init__(self):
         self.cursors = []
         self.local = type('local', (object,), {'tables': {}})()
@@ -62,6 +61,10 @@ class Engine(object):
     def release_cursor(self, cursor):
         self.cursors.append(cursor)
 
+    @property
+    def cursor(self):
+        return CursorContext(self)
+
     def get_table(self, name):
         return Table(name, self)
     
@@ -98,19 +101,27 @@ class Engine(object):
         return copy.deepcopy(result)
 
 
-class Table(object):
+class CursorContext:
+    def __init__(self, engine):
+        self.engine = engine
+
+    async def __aenter__(self):
+        self.cursor = await self.engine.acquare_cursor()
+        return self.cursor
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self.engine.release_cursor(self.cursor)
+
+
+class Table:
     def __init__(self, name, engine):
         self.tablename = name
         self.engine = engine
         self.keyword = '%s'
 
-    @asynccontextmanager
-    async def cursor(self):
-        cursor = await self.engine.acquare_cursor()
-        try:
-            yield cursor
-        finally:
-            self.engine.release_cursor(cursor)
+    @property
+    def cursor(self):
+        return self.engine.cursor
 
     async def describe(self):
         return await self.engine.get_columns(self.tablename)
@@ -158,7 +169,7 @@ class Table(object):
             charset = collate.split('_')[0]
             sql = 'CREATE TABLE `{}` ({}) ENGINE=InnoDB DEFAULT CHARSET {} COLLATE {}'.format(self.tablename, scolumn, charset, collate)
         
-        async with self.cursor() as cursor:
+        async with self.cursor as cursor:
             await cursor.execute(sql, tuple(values))
         self.engine.local.tables[self.tablename] = None
 
@@ -172,7 +183,7 @@ class Table(object):
             items.append(self.keyword)
 
         sql = 'INSERT INTO `{}` ({}) VALUES ({})'.format(self.tablename, ', '.join(keys), ', '.join(items))
-        async with self.cursor() as cursor:
+        async with self.cursor as cursor:
             await cursor.execute(sql, tuple(values))
             assert cursor.rowcount == 1
             return cursor.lastrowid
@@ -287,7 +298,7 @@ class Table(object):
             sql += ' FOR UPDATE'
 
         result = []
-        async with self.cursor() as cursor:
+        async with self.cursor as cursor:
             await cursor.execute(sql, tuple(values))
             if cursor.rowcount:
                 columns = cursor.description
@@ -334,7 +345,7 @@ class Table(object):
             assert isinstance(limit, int)
             sql += ' LIMIT {}'.format(limit)
 
-        async with self.cursor() as cursor:
+        async with self.cursor as cursor:
             await cursor.execute(sql, tuple(values))
 
     async def update_one(self, filter=None, update=None):
@@ -346,7 +357,7 @@ class Table(object):
         sql = 'DELETE FROM `{}`'.format(self.tablename)
         if where:
             sql += ' WHERE {}'.format(where)
-        async with self.cursor() as cursor:
+        async with self.cursor as cursor:
             await cursor.execute(sql, tuple(values))
 
     async def create_index(self, name, column, primary=False, unique=False, fulltext=False, exist_ok=False):
@@ -375,11 +386,11 @@ class Table(object):
             index_type = 'FULLTEXT '
 
         sql = 'ALTER TABLE `{}` ADD {}{}({})'.format(self.tablename, index_type, name, column)
-        async with self.cursor() as cursor:
+        async with self.cursor as cursor:
             await cursor.execute(sql)
 
     async def has_index(self, name):
-        async with self.cursor() as cursor:
+        async with self.cursor as cursor:
             await cursor.execute('show index from ' + self.tablename)
             for row in await cursor.fetchall():
                 if row[2] == name:
@@ -392,7 +403,7 @@ class Table(object):
         sql = 'SELECT COUNT(*) FROM `{}`'.format(self.tablename)
         if where:
             sql += ' WHERE {}'.format(where)
-        async with self.cursor() as cursor:
+        async with self.cursor as cursor:
             await cursor.execute(sql, tuple(values))
             return (await cursor.fetchone())[0]
 
@@ -401,5 +412,5 @@ class Table(object):
         if exist_ok:
             sql += 'IF EXISTS '
         sql += self.tablename
-        async with self.cursor() as cursor:
+        async with self.cursor as cursor:
             await cursor.execute(sql)
