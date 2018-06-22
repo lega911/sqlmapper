@@ -44,7 +44,7 @@ db.commit()
 ```python
 from sqlmapper.aio import Connection
 
-db = await Connection(host='127.0.0.1', user='root', db='example_demo', autocreate=True, read_commited=True)
+db = await Connection(db='example')
 
 await db.book.add_column('value', 'int', exist_ok=True)
 await db.book.insert({'name': 'ubuntu', 'value': 16})
