@@ -34,8 +34,14 @@ class AsyncConnection(object):
     def __getattr__(self, name):
         return self[name]
 
-    def __iter__(self):
-        return self._engine.get_tables()
+    def __aiter__(self):
+        return DBList(self._engine)
+
+    async def __anext__(self):
+        tables = await self._engine.get_tables()
+        for name in tables:
+            print('-', name)
+            yield name
 
     def on_commit(self, fn):
         self._engine.on_commit(fn)
@@ -57,3 +63,23 @@ class AsyncConnection(object):
         if exc_type:
             return False
     '''
+
+class DBList:
+    def __init__(self, engine):
+        self.engine = engine
+        self.result = None
+        self.index = 0
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.result is None:
+            self.result = await self.engine.get_tables()
+
+        if self.index >= len(self.result):
+            raise StopAsyncIteration
+
+        value = self.result[self.index]
+        self.index += 1
+        return value

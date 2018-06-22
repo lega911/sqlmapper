@@ -27,6 +27,9 @@ async def main():
 
     print(await db.book.count())
 
+    async for name in db:
+        print('table', name)
+
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
