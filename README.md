@@ -1,7 +1,7 @@
 # Sqlmapper
 Easy wrapper for SQL
 
-* Supports Python 2.x, 3.x, MySQL, SQLite (PostgreSQL is coming)
+* Supports Python 2.x, 3.x, MySQL, SQLite, asyncio (PostgreSQL is coming)
 * License [MIT](http://opensource.org/licenses/MIT)
 
 ### Install and update using pip
@@ -38,6 +38,22 @@ db.tblname.delete({'name': 'MacOS'})
 # DELETE FROM `tblname` WHERE `tblname`.`name`='MacOS'
 
 db.commit()
+```
+
+### asyncio
+```python
+from sqlmapper.aio import Connection
+
+db = await Connection(host='127.0.0.1', user='root', db='example_demo', autocreate=True, read_commited=True)
+
+await db.book.add_column('value', 'int', exist_ok=True)
+await db.book.insert({'name': 'ubuntu', 'value': 16})
+await db.commit()
+d = await db.book.find_one(1)
+print(d)
+
+await db.book.update(1, {'value': 18})
+print(await db.book.count())
 ```
 
 ### Change schema
