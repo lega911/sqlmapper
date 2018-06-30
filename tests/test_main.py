@@ -120,7 +120,3 @@ def main(db):
 
 def test_context():
     pass
-
-
-def test_threading():
-    pass

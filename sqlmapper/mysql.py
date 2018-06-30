@@ -10,29 +10,35 @@ from .base_engine import BaseEngine
 
 
 class Engine(BaseEngine):
-    def __init__(self, **kw):
-        autocreate = kw.pop('autocreate', False)
-        self.read_commited = kw.pop('read_commited', False)
+    def __init__(self, autocreate=None, read_commited=False, **kw):
+        self.read_commited = read_commited
         self.local = threading.local()
         if 'charset' not in kw:
             kw['charset'] = 'utf8mb4'
         super(Engine, self).__init__()
 
-        try:
-            conn = MySQLdb.connect(**kw)
-        except MySQLdb.OperationalError as e:
-            if autocreate and e.args[0] == 1049:
-                ckw = kw.copy()
-                db = ckw.pop('db')
+        self.db_config = {}
+        for k in ['host', 'port', 'user', 'password', 'db', 'charset']:
+            if k in kw:
+                self.db_config[k] = kw[k]
 
-                conn = MySQLdb.connect(**ckw)
+        self.local.conn = self.get_connection(autocreate_db=autocreate)
+
+    def get_connection(self, autocreate_db=False):
+        try:
+            return MySQLdb.connect(**self.db_config)
+        except MySQLdb.OperationalError as e:
+            if autocreate_db and e.args[0] == 1049:
+                config = self.db_config.copy()
+                db = config.pop('db')
+
+                conn = MySQLdb.connect(**config)
                 cursor = conn.cursor()
                 cursor.execute('CREATE DATABASE {}'.format(db))
                 conn.close()
-                conn = MySQLdb.connect(**kw)
+                return MySQLdb.connect(**self.db_config)
             else:
                 raise
-        self.local.conn = conn
 
     def commit(self):
         self.local.conn.commit()
@@ -48,9 +54,13 @@ class Engine(BaseEngine):
         self.local.conn = None
 
     def get_cursor(self):
+        self.thread_init()
         if hasattr(self.local, 'cursor'):
             return self.local.cursor
         
+        if not hasattr(self.local, 'conn'):
+            self.local.conn = self.get_connection()
+
         self.local.cursor = cursor = self.local.conn.cursor()
         if self.read_commited:
             cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
@@ -67,6 +77,7 @@ class Engine(BaseEngine):
             yield row[0]
 
     def get_columns(self, table):
+        self.thread_init()
         result = self.local.tables.get(table)
         if not result:
             result = []

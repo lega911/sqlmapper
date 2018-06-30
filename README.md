@@ -2,6 +2,7 @@
 Easy wrapper for SQL
 
 * Supports Python 2.x, 3.x, MySQL, SQLite, asyncio (PostgreSQL is coming)
+* Thread-safe (you can use the same connection from different threads)
 * License [MIT](http://opensource.org/licenses/MIT)
 
 ### Install and update using pip
