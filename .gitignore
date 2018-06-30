@@ -7,3 +7,4 @@ Makefile
 dist/
 test.py
 .vscode/
+.pytest_cache
