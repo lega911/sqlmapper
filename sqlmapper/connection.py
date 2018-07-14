@@ -7,6 +7,8 @@ class Connection(object):
             from .mysql import Engine as engine
         elif engine == 'sqlite':
             from .sqlite import Engine as engine
+        elif engine == 'postgresql':
+            from .psql import Engine as engine
         elif not callable(engine):
             raise NotImplementedError
         self._engine = engine(**kw)

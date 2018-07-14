@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import sqlite3
 import copy
 from .table import Table
-from .utils import validate_name, NoValue, cc
+from .utils import validate_name, NoValue, quote_key
 from .base_engine import BaseEngine
 
 
@@ -133,7 +133,7 @@ class SqliteTable(Table):
         if not isinstance(column, list):
             column = [column]
         
-        column = ', '.join(map(cc, column))
+        column = ', '.join(map(self.cc, column))
         sql = 'CREATE {}INDEX {} on {} ({})'.format(
             'UNIQUE ' if unique else '',
             name,

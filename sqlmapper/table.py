@@ -1,14 +1,18 @@
 
 from __future__ import absolute_import
 import re
-from .utils import NoValue, validate_name, cc, cc2, cc3, is_bytes, is_int, is_str
+from .utils import NoValue, validate_name, quote_key, format_func, is_bytes, is_int, is_str
 
 
 class Table(object):
-    def __init__(self, name, engine, keyword='%s'):
+    def __init__(self, name, engine, keyword='%s', quote='`'):
         self.tablename = name
         self.engine = engine
         self.keyword = keyword
+        self.quote = quote
+    
+    def cc(self, name):
+        return quote_key(name, self.quote)
 
     @property
     def cursor(self):
@@ -27,11 +31,11 @@ class Table(object):
         values = []
         items = []
         for key, value in data.items():
-            keys.append(cc(key))
+            keys.append(self.cc(key))
             values.append(value)
             items.append(self.keyword)
 
-        sql = 'INSERT INTO `{}` ({}) VALUES ({})'.format(self.tablename, ', '.join(keys), ', '.join(items))
+        sql = 'INSERT INTO {} ({}) VALUES ({})'.format(self.cc(self.tablename), ', '.join(keys), ', '.join(items))
         self.cursor.execute(sql, tuple(values))
         assert self.cursor.rowcount == 1
         return self.cursor.lastrowid
@@ -44,9 +48,9 @@ class Table(object):
             values = []
             for k, v in filter.items():
                 if '.' in k:
-                    k = cc3(k)
+                    k = self.cc(k)
                 else:
-                    k = '`{}`.{}'.format(self.tablename, cc(k))
+                    k = self.cc(self.tablename + '.' + k)
                 if v is None:
                     keys.append(k + ' is NULL')
                 else:
@@ -65,7 +69,7 @@ class Table(object):
                     break
             else:
                 raise ValueError('No primary key')
-            return '`{}` = {}'.format(key, self.keyword), [filter]
+            return '{} = {}'.format(self.cc(key), self.keyword), [filter]
         else:
             raise NotImplementedError
 
@@ -84,7 +88,7 @@ class Table(object):
             assert not join
             if not isinstance(columns, (list, tuple)):
                 columns = [columns]
-            columns = ', '.join(map(cc2, columns))
+            columns = ', '.join(map(lambda n: format_func(n, self.quote), columns))
         else:
             columns = '{}.*'.format(self.tablename)
 
@@ -105,7 +109,7 @@ class Table(object):
                 assert r
                 table2, alias, column2, column1 = r.groups()
 
-            columns += ', "" as __divider, {}.*'.format(alias)
+            columns += ', \'\' as __divider, {}.*'.format(alias)
             join = ' {}JOIN {} AS {} ON {}.{} = {}'.format(prefix, table2, alias, alias, column2, column1)
             
             key = None
@@ -120,23 +124,23 @@ class Table(object):
                 'key': key
             })
 
-        sql = 'SELECT {} FROM `{}`'.format(columns, self.tablename)
+        sql = 'SELECT {} FROM {}'.format(columns, self.cc(self.tablename))
         where, values = self._build_filter(filter)
         if join:
             sql += join
         if where:
             sql += ' WHERE ' + where
         if group_by:
-            sql += ' GROUP BY ' + cc3(group_by)
+            sql += ' GROUP BY ' + self.cc(group_by)
         if order_by:
             if not isinstance(order_by, list):
                 order_by = [order_by]
             oc = []
             for name in order_by:
                 if name.startswith('-'):
-                    oc.append(cc3(name[1:]) + ' DESC')
+                    oc.append(self.cc(name[1:]) + ' DESC')
                 else:
-                    oc.append(cc3(name))
+                    oc.append(self.cc(name))
             sql += ' ORDER BY ' + ', '.join(oc)
         if limit:
             assert is_int(limit)
@@ -177,10 +181,10 @@ class Table(object):
         up = []
         values = []
         for key, value in update.items():
-            up.append('`{}` = {}'.format(key, self.keyword))
+            up.append('{} = {}'.format(self.cc(key), self.keyword))
             values.append(value)
 
-        sql = 'UPDATE `{}` SET {}'.format(self.tablename, ', '.join(up))
+        sql = 'UPDATE {} SET {}'.format(self.cc(self.tablename), ', '.join(up))
 
         where, wvalues = self._build_filter(filter)
         if where:
@@ -199,50 +203,15 @@ class Table(object):
     def delete(self, filter=None):
         where, values = self._build_filter(filter)
 
-        sql = 'DELETE FROM `{}`'.format(self.tablename)
+        sql = 'DELETE FROM {}'.format(self.cc(self.tablename))
         if where:
             sql += ' WHERE {}'.format(where)
         self.cursor.execute(sql, tuple(values))
 
-    def create_index(self, name, column, primary=False, unique=False, fulltext=False, exist_ok=False):
-        if primary:
-            name = 'PRIMARY'
-        if exist_ok and self.has_index(name):
-            return
-
-        if isinstance(column, list):
-            column = ', '.join(map(cc, column))
-        else:
-            column = cc(column)
-
-        index_type = 'INDEX '
-        if primary:
-            index_type = 'PRIMARY KEY '
-            assert not fulltext
-            name = ''
-        else:
-            name = cc(name)
-
-        if unique and not primary:
-            assert not fulltext
-            index_type = 'UNIQUE '
-        elif fulltext:
-            index_type = 'FULLTEXT '
-
-        sql = 'ALTER TABLE `{}` ADD {}{}({})'.format(self.tablename, index_type, name, column)
-        self.cursor.execute(sql)
-
-    def has_index(self, name):
-        self.cursor.execute('show index from ' + self.tablename)
-        for row in self.cursor:
-            if row[2] == name:
-                return True
-        return False
-
     def count(self, filter=None):
         where, values = self._build_filter(filter)
 
-        sql = 'SELECT COUNT(*) FROM `{}`'.format(self.tablename)
+        sql = 'SELECT COUNT(*) FROM {}'.format(self.cc(self.tablename))
         if where:
             sql += ' WHERE {}'.format(where)
         self.cursor.execute(sql, tuple(values))

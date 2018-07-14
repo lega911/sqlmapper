@@ -2,9 +2,19 @@
 from sqlmapper import Connection
 
 
-def main():
-    db = Connection(engine='sqlite')
+def run_mysql():
+    run(Connection(host='127.0.0.1', user='root', db='example', autocreate=True, read_commited=True))
 
+
+def run_psql():
+    run(Connection(engine='postgresql', host='127.0.0.1', user='postgres', password='secret', db='example', autocreate=True))
+
+
+def run_sqlite():
+    run(Connection(engine='sqlite'))
+
+
+def run(db):
     db.book.add_column('id', 'int', primary=True, auto_increment=True, exist_ok=True)
     db.book.add_column('name', 'text', exist_ok=True)
     db.book.add_column('value', 'int', exist_ok=True)
@@ -17,7 +27,7 @@ def main():
     db.book.update(1, {'value': 18})
     db.commit()
 
-    for d in db.book.find():
+    for d in db.book.find({'name': 'ubuntu'}):
         print(d)
     
     db.book.delete({'value': 18})
@@ -27,4 +37,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    run_psql()
+    run_mysql()
+    run_sqlite()

@@ -7,6 +7,10 @@ def test_mysql():
     main(Connection(host='127.0.0.1', db='unittest', user='root', autocreate=True, read_commited=True))
 
 
+def test_psql():
+    main(Connection(engine='postgresql', host='127.0.0.1', db='unittest', user='postgres', password='secret', autocreate=True))
+
+
 def test_sqlite():
     main(Connection(engine='sqlite'))
 
@@ -98,6 +102,8 @@ def main(db):
     with pytest.raises(Exception):
         db.book.update(4, {'ext': 10})
         db.commit()
+
+    db.rollback()
     
     db.ref.add_column('id', 'int', primary=True, auto_increment=True)
     db.ref.add_column('book_id', 'int')

@@ -27,27 +27,30 @@ else:
         return isinstance(value, str)
 
 
-def cc(name):
+def validate_name(name):
     assert name
     assert is_str(name) or is_bytes(name), 'Wrong type'
     assert re.match(r'^[\w\d_]+$', name), 'Wrong name value: `{}`'.format(name)
-    return '`' + name + '`'
 
 
-def cc2(name):
+def quote_key(name, q='`'):
+    if '.' in name:
+        name = name.split('.')
+    else:
+        name = [name]
+
+    result = []
+    for n in name:
+        validate_name(n)
+        result.append(q + n + q)
+    return '.'.join(result)
+
+
+def format_func(name, q='`'):
     r = re.match(r'^(\w+)\(([^\)]+)\)$', name)
     if not r:
-        return cc(name)
+        return quote_key(name, q)
 
     func = r.groups(0)[0]
     name = r.groups(0)[1]
-    return '{}({}) as {}'.format(func, cc(name), cc(func+'_'+name).lower())
-
-
-def cc3(name):
-    return '.'.join(map(cc, name.split('.')))
-
-
-def validate_name(*names):
-    for name in names:
-        cc(name)
+    return '{}({}) as {}'.format(func, quote_key(name, q), quote_key(func + '_' + name, q).lower())

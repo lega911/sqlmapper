@@ -2,7 +2,7 @@
 import copy
 import re
 import aiomysql
-from ..utils import validate_name, NoValue, cc
+from ..utils import validate_name, NoValue, quote_key, format_func
 
 
 class Engine:
@@ -178,7 +178,7 @@ class Table:
         values = []
         items = []
         for key, value in data.items():
-            keys.append(cc(key))
+            keys.append(quote_key(key))
             values.append(value)
             items.append(self.keyword)
 
@@ -195,10 +195,9 @@ class Table:
             keys = []
             values = []
             for k, v in filter.items():
-                if '.' in k:
-                    k = cc3(k)
-                else:
-                    k = '`{}`.{}'.format(self.tablename, cc(k))
+                if '.' not in k:
+                    k = self.tablename +  '.' + k
+                k = quote_key(k)
                 if v is None:
                     keys.append(k + ' is NULL')
                 else:
@@ -236,7 +235,7 @@ class Table:
             assert not join
             if not isinstance(columns, (list, tuple)):
                 columns = [columns]
-            columns = ', '.join(map(cc2, columns))
+            columns = ', '.join(map(format_func, columns))
         else:
             columns = '{}.*'.format(self.tablename)
 
@@ -279,16 +278,16 @@ class Table:
         if where:
             sql += ' WHERE ' + where
         if group_by:
-            sql += ' GROUP BY ' + cc3(group_by)
+            sql += ' GROUP BY ' + quote_key(group_by)
         if order_by:
             if not isinstance(order_by, list):
                 order_by = [order_by]
             oc = []
             for name in order_by:
                 if name.startswith('-'):
-                    oc.append(cc3(name[1:]) + ' DESC')
+                    oc.append(quote_key(name[1:]) + ' DESC')
                 else:
-                    oc.append(cc3(name))
+                    oc.append(quote_key(name))
             sql += ' ORDER BY ' + ', '.join(oc)
         if limit:
             assert isinstance(limit, int)
@@ -367,9 +366,9 @@ class Table:
             return
 
         if isinstance(column, list):
-            column = ', '.join(map(cc, column))
+            column = ', '.join(map(quote_key, column))
         else:
-            column = cc(column)
+            column = quote_key(column)
 
         index_type = 'INDEX '
         if primary:
@@ -377,7 +376,7 @@ class Table:
             assert not fulltext
             name = ''
         else:
-            name = cc(name)
+            name = quote_key(name)
 
         if unique and not primary:
             assert not fulltext
