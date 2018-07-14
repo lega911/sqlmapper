@@ -39,6 +39,7 @@ def main(db):
     db.commit()
 
     assert db.book.count() == 8
+    assert db.book.count(('value > %s', 10)) == 4
 
     class dd:
         status = 0

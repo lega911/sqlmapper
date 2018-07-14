@@ -141,3 +141,9 @@ class SqliteTable(Table):
             column
         )
         self.cursor.execute(sql)
+
+    def _build_filter(self, filter):
+        s, v = super(SqliteTable, self)._build_filter(filter)
+        if isinstance(filter, (list, tuple)) and s:
+            s = s.replace('%s', '?')
+        return s, v
