@@ -75,7 +75,7 @@ class Engine:
     def cursor(self):
         return CursorContext(self)
 
-    def try_execute(self, query, argv):
+    def try_execute(self, query, argv=None):
         return TryExecuteContext(self, query, argv)
 
     def get_table(self, name):
@@ -83,22 +83,16 @@ class Engine:
 
     async def get_tables(self):
         result = []
-        cursor = await self.acquare_cursor()
-        try:
-            await cursor.execute('SHOW TABLES')
+        async with self.try_execute('SHOW TABLES') as cursor:
             for row in await cursor.fetchall():
                 result.append(row[0])
-        finally:
-            self.release_cursor(cursor)
         return result
 
     async def get_columns(self, table):
         result = self.local.tables.get(table)
         if not result:
             result = []
-            cursor = await self.acquare_cursor()
-            try:
-                await cursor.execute('describe `{}`'.format(table))
+            async with self.try_execute('describe `{}`'.format(table)) as cursor:
                 for row in await cursor.fetchall():
                     result.append({
                         'name': row[0],
@@ -108,8 +102,7 @@ class Engine:
                         'primary': row[3] == 'PRI',
                         'auto_increment': row[5] == 'auto_increment'
                     })
-            finally:
-                self.release_cursor(cursor)
+
             self.local.tables[table] = result
         return copy.deepcopy(result)
 
@@ -132,7 +125,7 @@ class TryExecuteContext:
         self.query = query
         self.argv = argv
 
-    async def __aenter__(self):
+    async def run(self):
         cursor = await self.engine.acquare_cursor()
         try:
             await cursor.execute(self.query, self.argv)
@@ -149,11 +142,17 @@ class TryExecuteContext:
             else:
                 raise
 
-        self.cursor = cursor
         return cursor
+
+    async def __aenter__(self):
+        self.cursor = await self.run()
+        return self.cursor
 
     async def __aexit__(self, exc_type, exc, tb):
         self.engine.release_cursor(self.cursor)
+
+    async def __call__(self):
+        self.engine.release_cursor(await self.run())
 
 
 class Table:
@@ -166,7 +165,7 @@ class Table:
     def cursor(self):
         return self.engine.cursor
 
-    def try_execute(self, query, argv):
+    def try_execute(self, query, argv=None):
         return self.engine.try_execute(query, argv)
 
     async def describe(self):
@@ -215,8 +214,7 @@ class Table:
             charset = collate.split('_')[0]
             sql = 'CREATE TABLE `{}` ({}) ENGINE=InnoDB DEFAULT CHARSET {} COLLATE {}'.format(self.tablename, scolumn, charset, collate)
 
-        async with self.cursor as cursor:
-            await cursor.execute(sql, tuple(values))
+        await self.try_execute(sql, tuple(values))()
         self.engine.local.tables[self.tablename] = None
 
     async def insert(self, data):
@@ -229,8 +227,7 @@ class Table:
             items.append(self.keyword)
 
         sql = 'INSERT INTO `{}` ({}) VALUES ({})'.format(self.tablename, ', '.join(keys), ', '.join(items))
-        async with self.cursor as cursor:
-            await cursor.execute(sql, tuple(values))
+        async with self.try_execute(sql, tuple(values)) as cursor:
             assert cursor.rowcount == 1
             return cursor.lastrowid
 
@@ -385,13 +382,12 @@ class Table:
         if where:
             sql += ' WHERE ' + where
             values += wvalues
-        
+
         if limit:
             assert isinstance(limit, int)
             sql += ' LIMIT {}'.format(limit)
 
-        async with self.cursor as cursor:
-            await cursor.execute(sql, tuple(values))
+        await self.try_execute(sql, tuple(values))()
 
     async def update_one(self, filter=None, update=None):
         await self.update(filter, update, limit=1)
@@ -402,8 +398,7 @@ class Table:
         sql = 'DELETE FROM `{}`'.format(self.tablename)
         if where:
             sql += ' WHERE {}'.format(where)
-        async with self.cursor as cursor:
-            await cursor.execute(sql, tuple(values))
+        await self.try_execute(sql, tuple(values))()
 
     async def create_index(self, name, column, primary=False, unique=False, fulltext=False, exist_ok=False):
         if primary:
@@ -431,12 +426,10 @@ class Table:
             index_type = 'FULLTEXT '
 
         sql = 'ALTER TABLE `{}` ADD {}{}({})'.format(self.tablename, index_type, name, column)
-        async with self.cursor as cursor:
-            await cursor.execute(sql)
+        await self.try_execute(sql)()
 
     async def has_index(self, name):
-        async with self.cursor as cursor:
-            await cursor.execute('show index from ' + self.tablename)
+        async with self.try_execute('show index from ' + self.tablename) as cursor:
             for row in await cursor.fetchall():
                 if row[2] == name:
                     return True
@@ -448,8 +441,7 @@ class Table:
         sql = 'SELECT COUNT(*) FROM `{}`'.format(self.tablename)
         if where:
             sql += ' WHERE {}'.format(where)
-        async with self.cursor as cursor:
-            await cursor.execute(sql, tuple(values))
+        async with self.try_execute(sql, tuple(values)) as cursor:
             return (await cursor.fetchone())[0]
 
     async def drop(self, exist_ok=True):
@@ -457,5 +449,4 @@ class Table:
         if exist_ok:
             sql += 'IF EXISTS '
         sql += self.tablename
-        async with self.cursor as cursor:
-            await cursor.execute(sql)
+        await self.try_execute(sql)()
