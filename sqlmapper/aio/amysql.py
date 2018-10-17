@@ -2,6 +2,7 @@
 import copy
 import re
 import aiomysql
+from pymysql.err import InternalError, OperationalError
 from ..utils import validate_name, NoValue, quote_key, format_func
 
 
@@ -14,9 +15,7 @@ class Engine:
         self.loop = loop
         self.read_commited = read_commited
 
-        from pymysql.err import InternalError, OperationalError
-
-        option = {}
+        self._option = option = {}
         for k in ['db', 'host', 'port', 'user', 'password', 'charset']:
             if k in kw:
                 option[k] = kw[k]
@@ -59,15 +58,29 @@ class Engine:
         return cursor
 
     def release_cursor(self, cursor):
-        self.cursors.append(cursor)
+        if not cursor.closed:
+            self.cursors.append(cursor)
+
+    async def reconnect(self):
+        for cursor in self.cursors:
+            await cursor.close()
+        self.cursors = []
+
+        if self.connection:
+            self.connection.close()
+
+        self.connection = await aiomysql.connect(loop=self.loop, **self._option)
 
     @property
     def cursor(self):
         return CursorContext(self)
 
+    def try_execute(self, query, argv):
+        return TryExecuteContext(self, query, argv)
+
     def get_table(self, name):
         return Table(name, self)
-    
+
     async def get_tables(self):
         result = []
         cursor = await self.acquare_cursor()
@@ -113,6 +126,36 @@ class CursorContext:
         self.engine.release_cursor(self.cursor)
 
 
+class TryExecuteContext:
+    def __init__(self, engine, query, argv):
+        self.engine = engine
+        self.query = query
+        self.argv = argv
+
+    async def __aenter__(self):
+        cursor = await self.engine.acquare_cursor()
+        try:
+            await cursor.execute(self.query, self.argv)
+        except OperationalError as e:
+            self.engine.release_cursor(cursor)
+            if e.args[0] == 2013:
+                await self.engine.reconnect()
+                cursor = await self.engine.acquare_cursor()
+                try:
+                    await cursor.execute(self.query, self.argv)
+                except Exception:
+                    self.engine.release_cursor(cursor)
+                    raise
+            else:
+                raise
+
+        self.cursor = cursor
+        return cursor
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self.engine.release_cursor(self.cursor)
+
+
 class Table:
     def __init__(self, name, engine):
         self.tablename = name
@@ -122,6 +165,9 @@ class Table:
     @property
     def cursor(self):
         return self.engine.cursor
+
+    def try_execute(self, query, argv):
+        return self.engine.try_execute(query, argv)
 
     async def describe(self):
         return await self.engine.get_columns(self.tablename)
@@ -168,7 +214,7 @@ class Table:
             collate = collate or 'utf8mb4_unicode_ci'
             charset = collate.split('_')[0]
             sql = 'CREATE TABLE `{}` ({}) ENGINE=InnoDB DEFAULT CHARSET {} COLLATE {}'.format(self.tablename, scolumn, charset, collate)
-        
+
         async with self.cursor as cursor:
             await cursor.execute(sql, tuple(values))
         self.engine.local.tables[self.tablename] = None
@@ -258,7 +304,7 @@ class Table:
 
             columns += ', "" as __divider, {}.*'.format(alias)
             join = ' {}JOIN {} AS {} ON {}.{} = {}'.format(prefix, table2, alias, alias, column2, column1)
-            
+
             key = None
             if left_join:
                 for c in self.engine.get_columns(self.tablename):
@@ -297,8 +343,7 @@ class Table:
             sql += ' FOR UPDATE'
 
         result = []
-        async with self.cursor as cursor:
-            await cursor.execute(sql, tuple(values))
+        async with self.try_execute(sql, tuple(values)) as cursor:
             if cursor.rowcount:
                 columns = cursor.description
                 for row in await cursor.fetchall():
@@ -324,6 +369,7 @@ class Table:
                         else:
                             d[column_name] = value
                     result.append(d)
+
         return result
 
     async def update(self, filter=None, update=None, limit=None):
