@@ -10,7 +10,7 @@ class Table(object):
         self.engine = engine
         self.keyword = keyword
         self.quote = quote
-    
+
     def cc(self, name):
         return quote_key(name, self.quote)
 
@@ -78,7 +78,7 @@ class Table(object):
         if result:
             return result[0]
 
-    def find(self, filter=None, limit=None, join=None, left_join=None, for_update=False, columns=None, group_by=None, order_by=None):
+    def find(self, filter=None, limit=None, join=None, left_join=None, for_update=False, columns=None, group_by=None, order_by=None, distinct=False):
         """
             join='subtable.id=column'
             join='subtable as tbl.id=column'
@@ -111,7 +111,7 @@ class Table(object):
 
             columns += ', \'\' as __divider, {}.*'.format(alias)
             join = ' {}JOIN {} AS {} ON {}.{} = {}'.format(prefix, table2, alias, alias, column2, column1)
-            
+
             key = None
             if left_join:
                 for c in self.engine.get_columns(self.tablename):
@@ -124,14 +124,19 @@ class Table(object):
                 'key': key
             })
 
-        sql = 'SELECT {} FROM {}'.format(columns, self.cc(self.tablename))
+        sql = 'SELECT '
+        if distinct:
+            sql += 'DISTINCT '
+        sql += '{} FROM {}'.format(columns, self.cc(self.tablename))
         where, values = self._build_filter(filter)
         if join:
             sql += join
         if where:
             sql += ' WHERE ' + where
         if group_by:
-            sql += ' GROUP BY ' + self.cc(group_by)
+            if not isinstance(group_by, list):
+                group_by = [group_by]
+            sql += ' GROUP BY ' + ', '.join(map(self.cc, group_by))
         if order_by:
             if not isinstance(order_by, list):
                 order_by = [order_by]

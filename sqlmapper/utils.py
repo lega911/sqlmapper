@@ -47,10 +47,21 @@ def quote_key(name, q='`'):
 
 
 def format_func(name, q='`'):
-    r = re.match(r'^(\w+)\(([^\)]+)\)$', name)
-    if not r:
+    if '(' not in name:
         return quote_key(name, q)
 
-    func = r.groups(0)[0]
-    name = r.groups(0)[1]
-    return '{}({}) as {}'.format(func, quote_key(name, q), quote_key(func + '_' + name, q).lower())
+    r = re.match(r'^(\w+)\(([^\)]+)\)\s+as\s+(\w+)$', name)
+    if not r:
+        r = re.match(r'^(\w+)\(([^\)]+)\)$', name)
+        if not r:
+            raise ValueError('Error column name: "%"' % name)
+
+    rx = r.groups(0)
+    func = rx[0]
+    name = rx[1]
+    if len(rx) == 3:
+        key = rx[2]
+    else:
+        key = func + '_' + name
+
+    return '{}({}) as {}'.format(func, quote_key(name, q), quote_key(key, q).lower())
