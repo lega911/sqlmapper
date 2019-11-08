@@ -116,7 +116,7 @@ class MysqlTable(Table):
                 scolumn += ' AUTO_INCREMENT'
 
         if default != NoValue:
-            if not_null or primary:
+            if auto_increment or primary:
                 raise ValueError('Can''t have default value')
             scolumn += ' DEFAULT %s'
             values.append(default)
