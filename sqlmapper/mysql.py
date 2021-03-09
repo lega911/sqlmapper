@@ -99,7 +99,7 @@ class Engine(BaseEngine):
 class MysqlTable(Table):
     def add_column(self, name, column_type, not_null=False, default=NoValue, exist_ok=False, primary=False, auto_increment=False, collate=None):
         validate_name(name)
-        assert re.match(r'^[\w\d\(\)]+$', column_type), 'Wrong type: {}'.format(column_type)
+        assert re.match(r'^[\w\d\(\),]+$', column_type), 'Wrong type: {}'.format(column_type)
         values = []
         scolumn = '`{}` {}'.format(name, column_type)
 
